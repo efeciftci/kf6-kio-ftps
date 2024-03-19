@@ -110,7 +110,7 @@ static char ftpModeFromPath(const QString &path, char defaultMode = '\0')
 
 static bool supportedProxyScheme(const QString &scheme)
 {
-    return (scheme == QLatin1String("ftp") || scheme == QLatin1String("socks"));
+    return (scheme == QLatin1String("ftps") || scheme == QLatin1String("socks"));
 }
 
 // JPF: somebody should find a better solution for this or move this to KIO
@@ -175,7 +175,7 @@ using namespace KIO;
 extern "C" Q_DECL_EXPORT int kdemain(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("kio_ftp"));
+    app.setApplicationName(QStringLiteral("kio_ftps"));
 
     qCDebug(KIO_FTPS) << "Starting";
 
@@ -320,12 +320,12 @@ void FtpInternal::setHost(const QString &_host, quint16 _port, const QString &_u
 
     m_proxyURL.clear();
     m_proxyUrls.clear();
-    const auto proxies = QNetworkProxyFactory::proxyForQuery(QNetworkProxyQuery(_host, _port, QStringLiteral("ftp"), QNetworkProxyQuery::UrlRequest));
+    const auto proxies = QNetworkProxyFactory::proxyForQuery(QNetworkProxyQuery(_host, _port, QStringLiteral("ftps"), QNetworkProxyQuery::UrlRequest));
 
     for (const QNetworkProxy &proxy : proxies) {
         if (proxy.type() != QNetworkProxy::NoProxy) {
             QUrl proxyUrl;
-            proxyUrl.setScheme(QStringLiteral("ftp"));
+            proxyUrl.setScheme(QStringLiteral("ftps"));
             proxyUrl.setUserName(proxy.user());
             proxyUrl.setPassword(proxy.password());
             proxyUrl.setHost(proxy.hostName());
@@ -393,7 +393,7 @@ Result FtpInternal::ftpOpenConnection(LoginMode loginMode)
     // Redirected due to credential change...
     if (userNameChanged && m_bLoggedOn) {
         QUrl realURL;
-        realURL.setScheme(QStringLiteral("ftp"));
+        realURL.setScheme(QStringLiteral("ftps"));
         if (m_user != QLatin1String(s_ftpLogin)) {
             realURL.setUserName(m_user);
         }
@@ -573,7 +573,7 @@ Result FtpInternal::ftpLogin(bool *userChanged)
     QString pass(m_pass);
 
     AuthInfo info;
-    info.url.setScheme(QStringLiteral("ftp"));
+    info.url.setScheme(QStringLiteral("ftps"));
     info.url.setHost(m_host);
     if (m_port > 0 && m_port != DEFAULT_FTP_PORT) {
         info.url.setPort(m_port);
@@ -1565,7 +1565,7 @@ Result FtpInternal::listDir(const QUrl &url)
     QString path = url.path();
     if (path.isEmpty()) {
         QUrl realURL;
-        realURL.setScheme(QStringLiteral("ftp"));
+        realURL.setScheme(QStringLiteral("ftps"));
         realURL.setUserName(m_user);
         realURL.setPassword(m_pass);
         realURL.setHost(m_host);
@@ -2331,11 +2331,11 @@ Result FtpInternal::copy(const QUrl &src, const QUrl &dest, int permissions, KIO
     Result result = Result::pass();
     if (bSrcLocal && !bDestLocal) { // File -> Ftp
         sCopyFile = src.toLocalFile();
-        qCDebug(KIO_FTPS) << "local file" << sCopyFile << "-> ftp" << dest.path();
+        qCDebug(KIO_FTPS) << "local file" << sCopyFile << "-> ftps" << dest.path();
         result = ftpCopyPut(iCopyFile, sCopyFile, dest, permissions, flags);
     } else if (!bSrcLocal && bDestLocal) { // Ftp -> File
         sCopyFile = dest.toLocalFile();
-        qCDebug(KIO_FTPS) << "ftp" << src.path() << "-> local file" << sCopyFile;
+        qCDebug(KIO_FTPS) << "ftps" << src.path() << "-> local file" << sCopyFile;
         result = ftpCopyGet(iCopyFile, sCopyFile, src, permissions, flags);
     } else {
         return Result::fail(ERR_UNSUPPORTED_ACTION, QString());
@@ -2638,7 +2638,7 @@ ConnectionResult FtpInternal::synchronousConnectToHost(const QString &host, quin
 //===============================================================================
 
 Ftp::Ftp(const QByteArray &pool, const QByteArray &app)
-    : WorkerBase(QByteArrayLiteral("ftp"), pool, app)
+    : WorkerBase(QByteArrayLiteral("ftps"), pool, app)
     , d(new FtpInternal(this))
 {
 }
