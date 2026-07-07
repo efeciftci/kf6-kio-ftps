@@ -4,7 +4,7 @@ project(kf6-kio-ftps)
 find_package(ECM 6.0.0 NO_MODULE)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 set(REQUIRED_QT_VERSION "6.5.0")
-set(KF_DEP_VERSION "6.0.0")
+set(KF_DEP_VERSION "6.19.0")
 
 include(KDEInstallDirs)
 include(KDECMakeSettings)
