@@ -1431,7 +1431,7 @@ Result FtpInternal::stat(const QUrl &url)
         entry.fastInsert(KIO::UDSEntry::UDS_NAME, QStringLiteral("."));
         entry.fastInsert(KIO::UDSEntry::UDS_FILE_TYPE, S_IFDIR);
         entry.fastInsert(KIO::UDSEntry::UDS_MIME_TYPE, QStringLiteral("inode/directory"));
-        entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+        entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         entry.fastInsert(KIO::UDSEntry::UDS_USER, QStringLiteral("root"));
         entry.fastInsert(KIO::UDSEntry::UDS_GROUP, QStringLiteral("root"));
         // no size
@@ -1476,7 +1476,7 @@ Result FtpInternal::stat(const QUrl &url)
         UDSEntry entry;
         entry.fastInsert(KIO::UDSEntry::UDS_NAME, filename);
         entry.fastInsert(KIO::UDSEntry::UDS_FILE_TYPE, S_IFDIR);
-        entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+        entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         // No clue about size, ownership, group, etc.
 
         q->statEntry(entry);
