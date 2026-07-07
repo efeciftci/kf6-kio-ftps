@@ -1121,14 +1121,16 @@ int FtpInternal::ftpOpenPortDataConnection()
         command = QStringLiteral("EPRT |2|%2|%3|").arg(localAddress.toString()).arg(m_server->serverPort());
     }
 
-    if (ftpSendCmd(command.toLatin1()) && (m_iRespType == 2)) return 0;
+    if (ftpSendCmd(command.toLatin1()) && (m_iRespType == 2))
     {
         m_server->waitForNewConnection(DEFAULT_CONNECT_TIMEOUT * 1000);
-        m_data = m_server->socket();
+        m_data = static_cast<QSslSocket*>(m_server->nextPendingConnection());
         delete m_server;
+        m_server = nullptr;
         return m_data ? 0 : ERR_CANNOT_CONNECT;
     }
     delete m_server;
+    m_server = nullptr;
     return ERR_INTERNAL;
 }
 
@@ -1509,8 +1511,10 @@ Result FtpInternal::stat(const QUrl &url)
         UDSEntry entry;
         entry.fastInsert(KIO::UDSEntry::UDS_NAME, filename);
         entry.fastInsert(KIO::UDSEntry::UDS_FILE_TYPE, S_IFDIR);
-        entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-        // No clue about size, ownership, group, etc.
+
+        if (!entry.contains(KIO::UDSEntry::UDS_ACCESS)) {
+            entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+        }
 
         q->statEntry(entry);
         return Result::pass();
@@ -1555,6 +1559,15 @@ Result FtpInternal::stat(const QUrl &url)
                 }
                 UDSEntry entry;
                 ftpCreateUDSEntry(filename, ftpEnt, entry, isDir);
+
+                if (ftpEnt.date.isValid()) {
+                    entry.replace(KIO::UDSEntry::UDS_MODIFICATION_TIME, static_cast<long long>(ftpEnt.date.toSecsSinceEpoch()));
+                }
+
+                if (!entry.contains(KIO::UDSEntry::UDS_ACCESS)) {
+                    entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, isDir ? 0755 : 0644);
+                }
+
                 q->statEntry(entry);
             }
         }
@@ -1576,6 +1589,15 @@ Result FtpInternal::stat(const QUrl &url)
             }
             UDSEntry entry;
             ftpCreateUDSEntry(filename, ftpEnt, entry, isDir);
+
+            if (ftpEnt.date.isValid()) {
+                entry.replace(KIO::UDSEntry::UDS_MODIFICATION_TIME, static_cast<long long>(ftpEnt.date.toSecsSinceEpoch()));
+            }
+
+            if (!entry.contains(KIO::UDSEntry::UDS_ACCESS)) {
+                entry.fastInsert(KIO::UDSEntry::UDS_ACCESS, isDir ? 0755 : 0644);
+            }
+
             q->statEntry(entry);
             break;
         }
@@ -1595,7 +1617,6 @@ Result FtpInternal::stat(const QUrl &url)
     }
 
     qCDebug(KIO_FTPS) << "stat : finished successfully";
-    ;
     return Result::pass();
 }
 
@@ -1613,6 +1634,8 @@ bool FtpInternal::maybeEmitStatEntry(FtpEntry &ftpEnt, const QString &filename, 
 
 Result FtpInternal::listDir(const QUrl &url)
 {
+    bool directoryIsEmpty = true;
+
     qCDebug(KIO_FTPS) << url;
     auto result = ftpOpenConnection(LoginMode::Implicit);
     if (!result.success()) {
@@ -1655,6 +1678,7 @@ Result FtpInternal::listDir(const QUrl &url)
     FtpEntry ftpEnt;
     QList<FtpEntry> ftpValidateEntList;
     while (ftpReadDir(ftpEnt)) {
+        directoryIsEmpty = false;
         qCDebug(KIO_FTPS) << ftpEnt.name;
         // Q_ASSERT( !ftpEnt.name.isEmpty() );
         if (!ftpEnt.name.isEmpty()) {
@@ -1671,6 +1695,15 @@ Result FtpInternal::listDir(const QUrl &url)
             q->listEntry(entry);
             entry.clear();
         }
+    }
+
+    if (directoryIsEmpty) {
+        UDSEntry udsEntry;
+        udsEntry.fastInsert(KIO::UDSEntry::UDS_NAME, QStringLiteral("."));
+        udsEntry.fastInsert(KIO::UDSEntry::UDS_FILE_TYPE, S_IFDIR);
+        udsEntry.fastInsert(KIO::UDSEntry::UDS_ACCESS, 0755);
+        udsEntry.fastInsert(KIO::UDSEntry::UDS_USER, m_user.isEmpty() ? QStringLiteral("anonymous") : m_user);
+        q->listEntry(udsEntry);
     }
 
     for (int i = 0, count = ftpValidateEntList.count(); i < count; ++i) {
@@ -1740,7 +1773,11 @@ Result FtpInternal::ftpOpenDir(const QString &path)
 
 bool FtpInternal::ftpReadDir(FtpEntry &de)
 {
-    Q_ASSERT(m_data);
+    if (!m_data) {
+        qCWarning(KIO_FTPS) << "ftpReadDir called with an invalid data channel socket.";
+        return false;
+    }
+    //Q_ASSERT(m_data);
 
     // get a line from the data connection ...
     while (true) {
@@ -1785,7 +1822,7 @@ bool FtpInternal::ftpReadDir(FtpEntry &de)
                 } else if (name == QLatin1String("modify")) {
                     // Format: YYYYMMDDHHMMSS[.sss]
                     de.date = QDateTime::fromString(value.left(14), QStringLiteral("yyyyMMddHHmmss"));
-                    de.date.setTimeSpec(Qt::UTC);
+                    de.date.setTimeZone(QTimeZone("UTC"));
                 } else if (name == QLatin1String("unix.mode")) {
                     bool ok;
                     uint mode = value.toUInt(&ok, 8);
@@ -2374,7 +2411,7 @@ QDateTime FtpInternal::ftpMdtm(const QString &path)
 
     QDateTime dt = QDateTime::fromString(QString::fromLatin1(psz).trimmed().left(14), QStringLiteral("yyyyMMddHHmmss"));
     if (dt.isValid()) {
-        dt.setTimeSpec(Qt::UTC);
+        dt.setTimeZone(QTimeZone("UTC"));
     }
     return dt;
 }
